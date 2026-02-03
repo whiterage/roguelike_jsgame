@@ -1,0 +1,119 @@
+import Level from "../entities/Level.js";
+import Room from "../entities/Room.js";
+import Corridor from "../entities/Corridor.js";
+
+export default class MapGenerator {
+    constructor(width, height) {
+        this.width = width;
+        this.height = height;
+    }
+
+    generate() {
+        const level = new Level({width: this.width, height: this.height});
+
+        // создаем комнаты (ниже реализация)
+        const rooms = this._placeRooms(level);
+
+        // коридоры
+        this._connectRooms(level, rooms);
+
+        // точка старта
+        level.startPoint = rooms[0].center;
+
+
+        // выход будет центр последней комнаты
+        level.stairsDown = rooms[rooms.length - 1].center;
+        level.setTile(level.stairsDown.x, level.stairsDown.y, 'stairs');
+
+        return level;
+    }
+
+    _placeRooms(level) {
+        const GRID_ROWS = 3;
+        const GRID_COLS = 3;
+        const generatedRooms = [];
+
+        const cellWidth = Math.floor(this.width / GRID_COLS);
+        const cellHeight = Math.floor(this.height / GRID_ROWS);
+
+        for (let row = 0; row < GRID_ROWS; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                const cellX = col * cellWidth;
+                const cellY = row * cellHeight;
+
+                // генерация случайных размеров и позиций
+                const roomWidth = 4 + Math.floor(Math.random() * (cellWidth - 6));
+                const roomHeight = 4 + Math.floor(Math.random() * (cellHeight - 6));
+                const roomX = cellX + 2 + Math.floor(Math.random() * (cellWidth - roomWidth - 4));
+                const roomY = cellY + 2 + Math.floor(Math.random() * (cellHeight - roomHeight - 4));
+
+                const room = new Room({x: roomX, y: roomY, width: roomWidth, height: roomHeight});
+
+                level.rooms.push(room);
+                generatedRooms.push(room);
+                this._carveRoom(level, room);
+            }
+        }
+        return generatedRooms;
+    }
+
+    _carveRoom(level, room) {
+        for (let y = room.y; y < room.y + room.height; y++) {
+            for (let x = room.x; x < room.x + room.width; x++) {
+                level.setTile(x, y, 'floor');
+            }
+        }
+    }
+
+    _connectRooms(level, room) {
+        for (let i = 0; i < room.length; i++) {
+            const roomA = room[i];
+
+            const row = Math.floor(i / 3);
+            const col = i % 3;
+
+            if (col < 2) {
+                const roomB = room[i + 1];
+                this._createTunnel(level, roomA.center, roomB.center);
+            }
+
+            if (row < 2) {
+                const roomB = room[i + 3];
+                this._createTunnel(level, roomA.center, roomB.center);
+            }
+        }
+    }
+
+    _createTunnel(level, pointA, pointB) {
+        const isHorizontalFirst = Math.random() > 0.5;
+
+        const corridor = new Corridor({
+            startX: pointA.x, startY: pointA.y,
+            endX: pointB.x, endY: pointB.y
+        });
+
+        if (isHorizontalFirst) {
+            this._drawHorizontalLine(level, pointA.x, pointB.x, pointA.y);
+            this._drawVerticalLine(level, pointA.y, pointB.y, pointB.x);
+        } else {
+            this._drawVerticalLine(level, pointA.y, pointB.y, pointA.x);
+            this._drawHorizontalLine(level, pointA.x, pointB.x, pointB.y);
+        }
+    }
+
+    _drawHorizontalLine(level, x1, x2, y) {
+        const start = Math.min(x1, x2);
+        const end = Math.max(x1, x2);
+        for (let x = start; x <= end; x++) {
+            level.setTile(x, y, 'floor');
+        }
+    }
+
+    _drawVerticalLine(level, y1, y2, x) {
+        const start = Math.min(y1, y2);
+        const end = Math.max(y1, y2);
+        for (let y = start; y <= end; y++) {
+            level.setTile(x, y, 'floor');
+        }
+    }
+}
