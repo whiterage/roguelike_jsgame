@@ -30,6 +30,10 @@ export default class Level {
         return this._monsters;
     }
 
+    set monsters(value) {
+        this._monsters = value;
+    }
+
     get rooms() {
         return this._rooms;
     }

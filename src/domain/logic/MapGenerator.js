@@ -127,8 +127,11 @@ export default class MapGenerator {
         for (let i = 1; i < rooms.length; i++) {
             const room = rooms[i];
             const enemyCount = Math.floor(Math.random() * 3);
+
             for (let j = 0; j < enemyCount; j++) {
-                const type = Math.floor(Math.random() * types.length);
+                const randomIndex = Math.floor(Math.random() * types.length);
+
+                const type = types[randomIndex];
 
                 const x = room.x + 1 + Math.floor(Math.random() * (room.width - 2));
                 const y = room.y + 1 + Math.floor(Math.random() * (room.height - 2));

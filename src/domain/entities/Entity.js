@@ -14,6 +14,10 @@ export default class Entity {
         return this._hp;
     }
 
+    set hp(value) {
+        this._hp = value;
+    }
+
     get strength() {
         return this._strength;
     }

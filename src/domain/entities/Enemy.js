@@ -49,4 +49,36 @@ export default class Enemy extends Entity {
     get symbol() {
         return this._symbol;
     }
+
+    update(level, hero) {
+        const dx = hero.x - this.x;
+        const dy = hero.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance > this.hostility) return;
+
+        let moveX = 0;
+        let moveY = 0;
+
+
+        if (Math.abs(dx) > Math.abs(dy)) {
+            moveX = Math.sign(dx);
+        } else {
+            moveY = Math.sign(dy);
+        }
+
+        const destX = this.x + moveX;
+        const destY = this.y + moveY;
+
+        if (level.getTile(destX, destY) === 'wall') return;
+
+        const isOccupied = level.monsters.some(m => m !== this && m.x === destX && m.y === destY);
+        if (isOccupied) return;
+
+        const isHeroThere = (hero.x === destX && hero.y === destY);
+        if (isHeroThere) return;
+
+        this.x = destX;
+        this.y = destY;
+    }
 }
