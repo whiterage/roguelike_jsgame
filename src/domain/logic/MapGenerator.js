@@ -1,6 +1,7 @@
 import Level from "../entities/Level.js";
 import Room from "../entities/Room.js";
 import Corridor from "../entities/Corridor.js";
+import Enemy from "../entities/Enemy.js";
 
 export default class MapGenerator {
     constructor(width, height) {
@@ -24,6 +25,9 @@ export default class MapGenerator {
         // выход будет центр последней комнаты
         level.stairsDown = rooms[rooms.length - 1].center;
         level.setTile(level.stairsDown.x, level.stairsDown.y, 'stairs');
+
+        // спавним врагов
+        this._spawnEnemies(level, rooms);
 
         return level;
     }
@@ -114,6 +118,25 @@ export default class MapGenerator {
         const end = Math.max(y1, y2);
         for (let y = start; y <= end; y++) {
             level.setTile(x, y, 'floor');
+        }
+    }
+
+    _spawnEnemies(level, rooms) {
+        const types = ['zombie', 'ghost', 'vampire', 'ogre', 'snake'];
+
+        for (let i = 1; i < rooms.length; i++) {
+            const room = rooms[i];
+            const enemyCount = Math.floor(Math.random() * 3);
+            for (let j = 0; j < enemyCount; j++) {
+                const type = Math.floor(Math.random() * types.length);
+
+                const x = room.x + 1 + Math.floor(Math.random() * (room.width - 2));
+                const y = room.y + 1 + Math.floor(Math.random() * (room.height - 2));
+
+                const enemy = new Enemy(type, x, y);
+
+                level.addEnemy(enemy);
+            }
         }
     }
 }

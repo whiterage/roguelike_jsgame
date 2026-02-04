@@ -74,4 +74,8 @@ export default class Level {
     set stairsDown(point) {
         this._stairsDown = point;
     }
+
+    addEnemy(enemy) {
+        this._monsters.push(enemy);
+    }
 }

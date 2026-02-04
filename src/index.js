@@ -12,16 +12,11 @@ screen.key(['escape', 'q', 'C-c'], function (ch, key) {
 });
 
 const width = process.stdout.columns - 4;
-const height = process.stdout.rows - 4;
+const height = process.stdout.rows - 6;
 
 const generator = new MapGenerator(width, height);
 let level;
-
-function nextLevel() {
-    level = generator.generate();
-    hero.setPosition(level.startPoint.x, level.startPoint.y);
-    screen.title = `Rogue JS - Level ${levelCounter}`;
-}
+let levelCounter = 1;
 
 const hero = new Character({
     maxHp: 100,
@@ -29,18 +24,38 @@ const hero = new Character({
     agility: 20
 });
 
-let levelCounter = 1;
+function nextLevel() {
+    level = generator.generate();
+    hero.setPosition(level.startPoint.x, level.startPoint.y);
+    screen.title = `Rogue JS - Level ${levelCounter}`;
+}
 
 nextLevel();
 
+const statusBox = blessed.box({
+    top: 0,
+    left: 'center',
+    width: '100%',
+    height: 1,
+    content: '',
+    tags: true,
+    style: {
+        fg: 'white',
+        bg: 'blue'
+    }
+});
+
+screen.append(statusBox);
+
 const mapBox = blessed.box({
-    top: 'center',
+    top: 2,
     left: 'center',
     width: level.width + 2,
     height: level.height + 2,
     content: 'Loading...',
     tags: true,
-    border: {type: 'line'}
+    border: {type: 'line'},
+    style: {border: {fg: '#444444'}}
 });
 
 screen.append(mapBox);
@@ -54,7 +69,6 @@ screen.key(['w', 's', 'a', 'd'], function (ch, key) {
     };
 
     const move = MOVES[key.name];
-
     if (!move) return;
 
     const newX = hero.x + move.x;
@@ -76,29 +90,45 @@ screen.key(['w', 's', 'a', 'd'], function (ch, key) {
 });
 
 function draw() {
+    const statusUI = ` {bold}Level:{/bold} ${levelCounter}  |  {bold}HP:{/bold} {red-fg}${hero.hp}/${hero.maxHp}{/}  |  {bold}Str:{/bold} ${hero.strength}  |  {bold}Agi:{/bold} ${hero.agility}`;
+    statusBox.setContent(statusUI);
+
     let content = '';
+
+    const monsters = level.monsters;
+
     for (let y = 0; y < level.height; y++) {
         for (let x = 0; x < level.width; x++) {
 
             // игрок
             if (x === hero.x && y === hero.y) {
                 content += '{cyan-fg}{bold}⚡{/bold}{/cyan-fg}';
+                continue;
             }
+
+            // враги
+            const monster = monsters.find(m => m.x === x && m.y === y);
+            if (monster) {
+                content += `{${monster.color}-fg}${monster.symbol}{/${monster.color}-fg}`;
+                continue;
+            }
+
             // выход
-            else if (x === level.stairsDown.x && y === level.stairsDown.y) {
+            if (x === level.stairsDown.x && y === level.stairsDown.y) {
                 content += '{magenta-fg}◎{/magenta-fg}';
+                continue;
             }
+
             // карта
-            else {
-                const tile = level.getTile(x, y);
-                if (tile === 'wall') {
-                    content += ' ';
-                } else if (tile === 'floor') {
-                    content += '{blue-fg}·{/blue-fg}';
-                } else {
-                    content += ' ';
-                }
+            const tile = level.getTile(x, y);
+            if (tile === 'wall') {
+                content += ' ';
+            } else if (tile === 'floor') {
+                content += '{blue-fg}·{/blue-fg}';
+            } else {
+                content += ' ';
             }
+
         }
         content += '\n';
     }
