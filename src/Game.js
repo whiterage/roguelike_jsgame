@@ -63,6 +63,27 @@ export default class Game {
         this._updateEnemies();
     }
 
+    useItem(index) {
+        const item = this.hero.inventory[index];
+        if (!item) return;
+
+        if (item.healthBonus) {
+            this.hero.hp = Math.min(this.hero.hp + item.healthBonus, this.hero.maxHp);
+        }
+        if (item.maxHpBonus) {
+            this.hero.maxHp += item.maxHpBonus;
+            this.hero.hp += item.maxHpBonus;
+        }
+        if (item.strength) {
+            this.hero.strength += item.strength;
+        }
+        if (item.agility) {
+            this.hero.agility += item.agility;
+        }
+
+        this.hero.inventory.splice(index, 1);
+    }
+
     _updateEnemies() {
         this.level.monsters.forEach(m => {
             m.update(this.level, this.hero, () => {
@@ -114,7 +135,6 @@ export default class Game {
         // логика награды
         const reward = Math.floor((monster.maxHp + monster.strength + monster.agility + monster.hostility) / 10);
         this.score += reward;
-        console.log(`You killed ${monster.type} and got ${reward} gold!`);
     }
 
     _handlePickup(item) {

@@ -31,17 +31,80 @@ export default class Renderer {
             style: {border: {fg: '#444444'}}
         });
 
+        this.inventoryBox = blessed.box({
+            top: 'center',
+            left: 'center',
+            width: 50,
+            height: 20,
+            hidden: true,
+            label: ' {bold}Inventory (Press i to close){/bold} ',
+            tags: true,
+            border: {type: 'line'},
+            style: {
+                border: {fg: 'yellow'},
+                bg: 'black',
+                fg: 'white'
+            },
+            draggable: true,
+            shadow: true
+        });
+
+
         this.screen.append(this.statusBox);
         this.screen.append(this.mapBox);
+        this.screen.append(this.inventoryBox);
+
+        this.isInventoryOpen = false;
     }
 
     onInput(callback) {
-        this.screen.key(['w', 's', 'a', 'd'], (ch, key) => {
-            callback(key.name);
+        this.screen.on('keypress', (ch, key) => {
+            if (key && key.name) {
+                callback(key.name);
+            } else if (ch) {
+                callback(ch);
+            }
         });
     }
 
+    toggleInventory(hero) {
+        this.isInventoryOpen = !this.isInventoryOpen;
+
+        if (this.isInventoryOpen) {
+            this.inventoryBox.show();
+            this._renderInventoryContent(hero);
+            this.inventoryBox.setFront();
+        } else {
+            this.inventoryBox.hide();
+        }
+        this.screen.render();
+        return this.isInventoryOpen;
+    }
+
+    _renderInventoryContent(hero) {
+        if (hero.inventory.length === 0) {
+            this.inventoryBox.setContent('\n  {red-fg}Your backpack is empty.{/red-fg}');
+            return;
+        }
+
+        let content = '\n';
+        hero.inventory.forEach((item, index) => {
+            content += `  ${index + 1}. {${item.color}-fg}${item.symbol}{/} ${item.name}`;
+
+            if (item.strength) content += ` {grey-fg}(Str +${item.strength}){/}`;
+            if (item.agility) content += ` {grey-fg}(Agi +${item.agility}){/}`;
+            if (item.healthBonus) content += ` {grey-fg}(HP +${item.healthBonus}){/}`;
+
+            content += '\n';
+        });
+
+        content += '\n  {grey-fg}Press numbers (1-9) to use items.{/}';
+        this.inventoryBox.setContent(content);
+    }
+
     draw(level, hero, levelCounter) {
+        if (this.isInventoryOpen) return;
+
         const statusUI = ` {bold}Level:{/bold} ${levelCounter}  |  {bold}HP:{/bold} {red-fg}${hero.hp}/${hero.maxHp}{/}  |  {bold}Str:{/bold} ${hero.strength}  |  {bold}Agi:{/bold} ${hero.agility}  |  {bold}Gold:{/bold} {yellow-fg}${hero.treasures || 0}{/}`;
         this.statusBox.setContent(statusUI);
 
