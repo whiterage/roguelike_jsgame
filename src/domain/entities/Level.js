@@ -34,12 +34,28 @@ export default class Level {
         this._monsters = value;
     }
 
-    get rooms() {
-        return this._rooms;
+    addEnemy(enemy) {
+        this._monsters.push(enemy);
     }
 
     get items() {
         return this._items;
+    }
+
+    set items(value) {
+        this._items = value;
+    }
+
+    addItem(item) {
+        this._items.push(item);
+    }
+
+    removeItem(item) {
+        this._items = this._items.filter(i => i !== item);
+    }
+
+    get rooms() {
+        return this._rooms;
     }
 
     get startPoint() {
@@ -58,6 +74,14 @@ export default class Level {
         return this._height;
     }
 
+    set startPoint(point) {
+        this._startPoint = point;
+    }
+
+    set stairsDown(point) {
+        this._stairsDown = point;
+    }
+
     getTile(x, y) {
         if (x >= 0 && x < this._width && y >= 0 && y < this._height) {
             return this._tiles[y][x];
@@ -69,17 +93,5 @@ export default class Level {
         if ((x >= 0 && x < this._width) && (y >= 0 && y < this._height)) {
             this._tiles[y][x] = type;
         }
-    }
-
-    set startPoint(point) {
-        this._startPoint = point;
-    }
-
-    set stairsDown(point) {
-        this._stairsDown = point;
-    }
-
-    addEnemy(enemy) {
-        this._monsters.push(enemy);
     }
 }

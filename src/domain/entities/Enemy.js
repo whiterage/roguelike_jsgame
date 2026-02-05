@@ -1,11 +1,11 @@
 import Entity from "./Entity.js";
 
 const ENEMY_STATS = {
-    zombie: {maxHP: 300, strength: 100, agility: 20, hostility: 30, symbol: 'z', color: 'green'},
-    vampire: {maxHP: 400, strength: 150, agility: 100, hostility: 80, symbol: 'v', color: 'red'},
-    ghost: {maxHP: 150, strength: 50, agility: 150, hostility: 40, symbol: 'g', color: 'white'},
-    ogre: {maxHP: 600, strength: 300, agility: 10, hostility: 20, symbol: 'O', color: 'yellow'},
-    snake: {maxHP: 200, strength: 120, agility: 200, hostility: 60, symbol: 's', color: 'white'}
+    zombie: {maxHP: 60, strength: 10, agility: 5, hostility: 6, symbol: 'z', color: 'green'},
+    vampire: {maxHP: 80, strength: 20, agility: 15, hostility: 10, symbol: 'v', color: 'red'},
+    ghost: {maxHP: 30, strength: 8, agility: 30, hostility: 8, symbol: 'g', color: 'white'},
+    ogre: {maxHP: 150, strength: 30, agility: 2, hostility: 5, symbol: 'O', color: 'yellow'},
+    snake: {maxHP: 40, strength: 12, agility: 25, hostility: 12, symbol: 's', color: 'white'}
 };
 
 export default class Enemy extends Entity {
@@ -50,7 +50,7 @@ export default class Enemy extends Entity {
         return this._symbol;
     }
 
-    update(level, hero) {
+    update(level, hero, onAttack) {
         const dx = hero.x - this.x;
         const dy = hero.y - this.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -76,7 +76,12 @@ export default class Enemy extends Entity {
         if (isOccupied) return;
 
         const isHeroThere = (hero.x === destX && hero.y === destY);
-        if (isHeroThere) return;
+        if (isHeroThere) {
+            if (onAttack) {
+                onAttack(this, hero);
+            }
+            return;
+        }
 
         this.x = destX;
         this.y = destY;

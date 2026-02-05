@@ -2,6 +2,7 @@ import Level from "../entities/Level.js";
 import Room from "../entities/Room.js";
 import Corridor from "../entities/Corridor.js";
 import Enemy from "../entities/Enemy.js";
+import Item from "../entities/Item.js";
 
 export default class MapGenerator {
     constructor(width, height) {
@@ -9,7 +10,7 @@ export default class MapGenerator {
         this.height = height;
     }
 
-    generate() {
+    generate(difficulty = 1) {
         const level = new Level({width: this.width, height: this.height});
 
         // создаем комнаты (ниже реализация)
@@ -26,8 +27,11 @@ export default class MapGenerator {
         level.stairsDown = rooms[rooms.length - 1].center;
         level.setTile(level.stairsDown.x, level.stairsDown.y, 'stairs');
 
-        // спавним врагов
+        // враги
         this._spawnEnemies(level, rooms);
+
+        // предметы
+        this._spawnItems(level, rooms, difficulty);
 
         return level;
     }
@@ -139,6 +143,29 @@ export default class MapGenerator {
                 const enemy = new Enemy(type, x, y);
 
                 level.addEnemy(enemy);
+            }
+        }
+    }
+
+    _spawnItems(level, rooms, difficulty) {
+        const chance = Math.max(0.1, 0.8 - (difficulty * 0.035));
+
+        for (let i = 1; i < rooms.length; i++) {
+            const room = rooms[i];
+
+            if (Math.random() < chance) {
+                const x = room.x + 1 + Math.floor(Math.random() * (room.width - 2));
+                const y = room.y + 1 + Math.floor(Math.random() * (room.height - 2));
+
+
+                const hasMonster = level.monsters.some(m => m.x === x && m.y === y);
+                const hasItem = level.items.some(it => it.x === x && it.y === y);
+
+                if (!hasMonster && !hasItem) {
+                    const template = Item.getRandomTemplate();
+                    const item = new Item(template, x, y);
+                    level.addItem(item);
+                }
             }
         }
     }

@@ -42,7 +42,7 @@ export default class Renderer {
     }
 
     draw(level, hero, levelCounter) {
-        const statusUI = ` {bold}Level:{/bold} ${levelCounter}  |  {bold}HP:{/bold} {red-fg}${hero.hp}/${hero.maxHp}{/}  |  {bold}Str:{/bold} ${hero.strength}  |  {bold}Agi:{/bold} ${hero.agility}`;
+        const statusUI = ` {bold}Level:{/bold} ${levelCounter}  |  {bold}HP:{/bold} {red-fg}${hero.hp}/${hero.maxHp}{/}  |  {bold}Str:{/bold} ${hero.strength}  |  {bold}Agi:{/bold} ${hero.agility}  |  {bold}Gold:{/bold} {yellow-fg}${hero.treasures || 0}{/}`;
         this.statusBox.setContent(statusUI);
 
         let content = '';
@@ -63,6 +63,13 @@ export default class Renderer {
                 const monster = level.monsters.find(m => m.x === x && m.y === y);
                 if (monster) {
                     content += `{${monster.color}-fg}${monster.symbol}{/${monster.color}-fg}`;
+                    continue;
+                }
+
+                // предметы
+                const item = level.items && level.items.find(i => i.x === x && i.y === y);
+                if (item) {
+                    content += `{${item.color}-fg}${item.symbol}{/${item.color}-fg}`;
                     continue;
                 }
 
