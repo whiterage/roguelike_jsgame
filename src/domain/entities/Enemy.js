@@ -57,33 +57,52 @@ export default class Enemy extends Entity {
 
         if (distance > this.hostility) return;
 
-        let moveX = 0;
-        let moveY = 0;
+        const stepX = Math.sign(dx);
+        const stepY = Math.sign(dy);
 
-
-        if (Math.abs(dx) > Math.abs(dy)) {
-            moveX = Math.sign(dx);
-        } else {
-            moveY = Math.sign(dy);
+        if (this.type === 'snake') {
+            if (stepX !== 0 && stepY !== 0) {
+                const moved = this._tryMove(this.x + stepX, this.y + stepY, level, hero, onAttack);
+                if (moved) return;
+            }
         }
 
-        const destX = this.x + moveX;
-        const destY = this.y + moveY;
+        let moved = false;
 
-        if (level.getTile(destX, destY) === 'wall') return;
+        if (Math.abs(dx) >= Math.abs(dy)) {
+            if (stepX !== 0) {
+                moved = this._tryMove(this.x + stepX, this.y, level, hero, onAttack);
+            }
+            if (!moved && stepY !== 0) {
+                moved = this._tryMove(this.x, this.y + stepY, level, hero, onAttack);
+            }
+        } else {
+            if (stepY !== 0) {
+                moved = this._tryMove(this.x, this.y + stepY, level, hero, onAttack);
+            }
+            if (!moved && stepX !== 0) {
+                moved = this._tryMove(this.x + stepX, this.y, level, hero, onAttack);
+            }
+        }
+    }
+
+    _tryMove(destX, destY, level, hero, onAttack) {
+        if (this.type !== 'ghost') {
+            if (level.getTile(destX, destY) === 'wall') return false;
+        }
+
+        if (!level.getTile(destX, destY)) return false;
 
         const isOccupied = level.monsters.some(m => m !== this && m.x === destX && m.y === destY);
-        if (isOccupied) return;
+        if (isOccupied) return false;
 
-        const isHeroThere = (hero.x === destX && hero.y === destY);
-        if (isHeroThere) {
-            if (onAttack) {
-                onAttack(this, hero);
-            }
-            return;
+        if (hero.x === destX && hero.y === destY) {
+            if (onAttack) onAttack(this, hero);
+            return true;
         }
 
         this.x = destX;
         this.y = destY;
+        return true;
     }
 }

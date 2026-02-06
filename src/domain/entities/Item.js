@@ -10,7 +10,7 @@ export const ITEM_TYPES = {
 
 const ITEMS_DB = [
     {type: ITEM_TYPES.FOOD, name: 'Apple', value: 20, symbol: 'a', color: 'red'},
-    {type: ITEM_TYPES.WEAPON, name: 'Rusty Sword', value: 5, symbol: '†', color: 'white'},
+    {type: ITEM_TYPES.WEAPON, name: 'Iron Sword', value: 15, symbol: '†', color: 'white'},
     {type: ITEM_TYPES.TREASURE, name: 'Gold Coin', value: 50, symbol: '$', color: 'yellow'},
     {type: ITEM_TYPES.SCROLL, name: 'Scroll of Strength', value: 2, symbol: '#', color: 'cyan'},
     {type: ITEM_TYPES.ELIXIR, name: 'Healing Potion', value: 50, symbol: '!', color: 'magenta'}
@@ -65,8 +65,16 @@ export default class Item {
         return this._x;
     }
 
+    set x(value) {
+        this._x = value;
+    }
+
     get y() {
         return this._y;
+    }
+
+    set y(value) {
+        this._y = value;
     }
 
     get name() {

@@ -26,6 +26,11 @@ export default class Game {
     }
 
     processInput(key) {
+        if (this.hero.hp <= 0) {
+            this._initGame();
+            return;
+        }
+
         const MOVES = {
             w: {x: 0, y: -1},
             s: {x: 0, y: 1},
@@ -67,6 +72,8 @@ export default class Game {
         const item = this.hero.inventory[index];
         if (!item) return;
 
+        this.logMessage(`You used {cyan-fg}${item.name}{/}.`);
+
         if (item.healthBonus) {
             this.hero.hp = Math.min(this.hero.hp + item.healthBonus, this.hero.maxHp);
         }
@@ -105,24 +112,49 @@ export default class Game {
         this.hero.inventory = [];
         this.hero.treasures = 0;
 
+        this.log = [];
+        this.logMessage("{yellow-fg}Welcome to the Dark Dungeon! Find the exit...{/}");
+
         this._nextLevel();
+    }
+
+    logMessage(message) {
+        this.log.push(message);
+        if (this.log.length > 10) {
+            this.log.shift();
+        }
     }
 
     // Боевая система. Формулы в mathAttack.md
     _resolveCombat(attacker, defender) {
+        const attName = (attacker === this.hero) ? "You" : attacker.type;
+        const defName = (defender === this.hero) ? "you" : defender.type;
+        const color = (attacker === this.hero) ? "green-fg" : "red-fg";
+
         const hitChance = attacker.agility / (attacker.agility + defender.agility);
         const roll = Math.random();
 
         if (roll > hitChance) {
+            this.logMessage(`{grey-fg}${attName} missed ${defName}.{/}`);
             return; // промах
         }
 
         const damage = attacker.strength;
         defender.hp -= damage;
 
+        this.logMessage(`{${color}}${attName} hit ${defName} for ${damage} dmg.{/}`);
+
+        // логика вампира
+        if (attacker.type === 'vampire') {
+            const healAmount = Math.ceil(damage * 0.5);
+            attacker.hp += healAmount; // Лечим вампира
+            this.logMessage(`{red-fg}Vampire drains ${healAmount} HP!{/}`);
+        }
+
         if (defender.hp <= 0) {
             if (defender === this.hero) {
-                this._initGame();
+                this.logMessage(`{red-bg}{white-fg} YOU DIED! Press any key to restart. {/}`);
+                this.hero.hp = 0;
             } else {
                 this._killMonster(defender);
             }
@@ -135,6 +167,10 @@ export default class Game {
         // логика награды
         const reward = Math.floor((monster.maxHp + monster.strength + monster.agility + monster.hostility) / 10);
         this.score += reward;
+
+        this.hero.treasures += reward;
+
+        this.logMessage(`You killed {red-fg}${monster.type}{/} and got {yellow-fg}${reward} gold{/}.`);
     }
 
     _handlePickup(item) {
@@ -142,12 +178,16 @@ export default class Game {
             this.hero.treasures += item.price;
             this.score += item.price;
             this.level.removeItem(item);
+            this.logMessage(`You picked up {yellow-fg}${item.price} gold{/}.`);
             return;
         }
 
         if (this.hero.inventory.length < 9) {
             this.hero.inventory.push(item);
             this.level.removeItem(item);
+            this.logMessage(`You picked up {cyan-fg}${item.name}{/}.`);
+        } else {
+            this.logMessage(`{red-fg}Inventory full! Cannot pick up ${item.name}.{/}`);
         }
     }
 }

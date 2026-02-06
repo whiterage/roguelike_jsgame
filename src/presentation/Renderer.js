@@ -31,6 +31,45 @@ export default class Renderer {
             style: {border: {fg: '#444444'}}
         });
 
+        this.logBox = blessed.box({
+            bottom: 0,
+            left: 'center',
+            width: '100%',
+            height: '20%-1',
+            tags: true,
+            border: {type: 'line'},
+            label: ' {bold}Combat Log{/bold} ',
+            scrollable: true,
+            alwaysScroll: true,
+            scrollbar: {
+                ch: ' ',
+                bg: 'green'
+            },
+            mouse: true,
+            style: {
+                border: {fg: 'green'},
+                fg: 'grey'
+            }
+        });
+
+        this.alertBox = blessed.box({
+            top: 'center',
+            left: 'center',
+            width: '50%',
+            height: 5,
+            align: 'center',
+            valign: 'middle',
+            hidden: true,
+            tags: true,
+            border: {type: 'line'},
+            style: {
+                fg: 'black',
+                bg: 'magenta',
+                border: {fg: 'cyan'},
+                bold: true
+            }
+        });
+
         this.inventoryBox = blessed.box({
             top: 'center',
             left: 'center',
@@ -52,9 +91,23 @@ export default class Renderer {
 
         this.screen.append(this.statusBox);
         this.screen.append(this.mapBox);
+        this.screen.append(this.logBox);
         this.screen.append(this.inventoryBox);
+        this.screen.append(this.alertBox);
 
         this.isInventoryOpen = false;
+    }
+
+    showAlert(text, duration = 2000) {
+        this.alertBox.setContent(`{center}${text}{/center}`);
+        this.alertBox.show();
+        this.alertBox.setFront();
+        this.screen.render();
+
+        setTimeout(() => {
+            this.alertBox.hide();
+            this.screen.render();
+        }, duration);
     }
 
     onInput(callback) {
@@ -102,11 +155,15 @@ export default class Renderer {
         this.inventoryBox.setContent(content);
     }
 
-    draw(level, hero, levelCounter) {
+    draw(level, hero, levelCounter, gameLog) {
         if (this.isInventoryOpen) return;
 
         const statusUI = ` {bold}Level:{/bold} ${levelCounter}  |  {bold}HP:{/bold} {red-fg}${hero.hp}/${hero.maxHp}{/}  |  {bold}Str:{/bold} ${hero.strength}  |  {bold}Agi:{/bold} ${hero.agility}  |  {bold}Gold:{/bold} {yellow-fg}${hero.treasures || 0}{/}`;
         this.statusBox.setContent(statusUI);
+
+        const logContent = (gameLog || []).join('\n');
+        this.logBox.setContent(logContent);
+        this.logBox.setScrollPerc(100);
 
         let content = '';
 
