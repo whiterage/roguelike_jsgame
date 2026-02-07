@@ -158,7 +158,14 @@ export default class Renderer {
     draw(level, hero, levelCounter, gameLog) {
         if (this.isInventoryOpen) return;
 
-        const statusUI = ` {bold}Level:{/bold} ${levelCounter}  |  {bold}HP:{/bold} {red-fg}${hero.hp}/${hero.maxHp}{/}  |  {bold}Str:{/bold} ${hero.strength}  |  {bold}Agi:{/bold} ${hero.agility}  |  {bold}Gold:{/bold} {yellow-fg}${hero.treasures || 0}{/}`;
+        let weaponStr = 'None';
+        if (hero.weapon) {
+            weaponStr = `${hero.weapon.name} (+${hero.weapon.strength})`;
+        }
+
+        const damage = hero.attackDamage || hero.strength;
+
+        const statusUI = ` {bold}Lvl:{/bold} ${levelCounter} | {bold}HP:{/bold} {red-fg}${hero.hp}/${hero.maxHp}{/} | {bold}Str:{/bold} ${hero.strength} | {bold}Agi:{/bold} ${hero.agility} | {bold}Wpn:{/bold} {cyan-fg}${weaponStr}{/} | {bold}Gold:{/bold} {yellow-fg}${hero.treasures || 0}{/}`;
         this.statusBox.setContent(statusUI);
 
         const logContent = (gameLog || []).join('\n');

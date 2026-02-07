@@ -4,8 +4,8 @@ import {ITEM_TYPES} from "./domain/entities/Item.js";
 
 export default class Game {
     constructor() {
-        const width = process.stdout.columns - 4;
-        const height = process.stdout.rows - 6;
+        const width = process.stdout.columns ? process.stdout.columns - 4 : 80;
+        const height = process.stdout.rows ? process.stdout.rows - 6 : 24;
 
         this.generator = new MapGenerator(width, height);
         this.levelCounter = 1;
@@ -28,6 +28,13 @@ export default class Game {
     processInput(key) {
         if (this.hero.hp <= 0) {
             this._initGame();
+            return;
+        }
+
+        if (this.hero.isSleeping) {
+            this.hero.isSleeping = false;
+            this.logMessage('{magenta-fg}You are sleeping... Zzz...{/}');
+            this._updateEnemies();
             return;
         }
 
@@ -72,6 +79,11 @@ export default class Game {
         const item = this.hero.inventory[index];
         if (!item) return;
 
+        if (item.type === ITEM_TYPES.WEAPON) {
+            this._equipWeapon(item, index);
+            return;
+        }
+
         this.logMessage(`You used {cyan-fg}${item.name}{/}.`);
 
         if (item.healthBonus) {
@@ -89,6 +101,41 @@ export default class Game {
         }
 
         this.hero.inventory.splice(index, 1);
+    }
+
+    _equipWeapon(newItem, inventoryIndex) {
+        if (this.hero.weapon) {
+            const oldWeapon = this.hero.weapon;
+            this._dropItemNearby(oldWeapon, this.hero.x, this.hero.y);
+            this.logMessage(`You dropped {white-fg}${oldWeapon.name}{/}.`);
+        }
+
+        this.hero.equipWeapon(newItem);
+        this.logMessage(`You equipped {cyan-fg}${newItem.name}{/}! Dmg: ${this.hero.attackDamage}`);
+
+        this.hero.inventory.splice(inventoryIndex, 1);
+    }
+
+    _dropItemNearby(item, x, y) {
+        const neighbors = [
+            {x: x + 1, y: y}, {x: x - 1, y: y},
+            {x: x, y: y + 1}, {x: x, y: y - 1},
+            {x: x + 1, y: y + 1}, {x: x - 1, y: y - 1},
+            {x: x + 1, y: y - 1}, {x: x - 1, y: y + 1}
+        ];
+
+        let dropSpot = {x: x, y: y};
+
+        for (const spot of neighbors) {
+            if (this.level.getTile(spot.x, spot.y) === 'floor') {
+                dropSpot = spot;
+                break;
+            }
+        }
+
+        item.x = dropSpot.x;
+        item.y = dropSpot.y;
+        this.level.addItem(item);
     }
 
     _updateEnemies() {
@@ -139,10 +186,26 @@ export default class Game {
             return; // промах
         }
 
-        const damage = attacker.strength;
-        defender.hp -= damage;
+        let damage = 0;
+        if (attacker === this.hero) {
+            damage = attacker.attackDamage;
+        } else {
+            damage = attacker.strength;
+        }
+
+        defender.takeDamage(damage);
 
         this.logMessage(`{${color}}${attName} hit ${defName} for ${damage} dmg.{/}`);
+
+        // логика змеи
+        if (attacker !== this.hero) {
+            if (attacker.type === 'snake') {
+                if (Math.random() < 0.2) {
+                    defender.isSleeping = true;
+                    this.logMessage('{magenta-fg}The Snake hypnotized you!{/}');
+                }
+            }
+        }
 
         // логика вампира
         if (attacker.type === 'vampire') {

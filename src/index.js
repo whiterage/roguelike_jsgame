@@ -2,7 +2,7 @@ const MIN_WIDTH = 100;
 const MIN_HEIGHT = 30;
 
 if (process.stdout.columns < MIN_WIDTH || process.stdout.rows < MIN_HEIGHT) {
-    console.log('\x1b[31m'); // Красный цвет
+    console.log('\x1b[31m');
     console.log('╔══════════════════════════════════════════════════════╗');
     console.log('║                   WINDOW TOO SMALL                   ║');
     console.log('╠══════════════════════════════════════════════════════╣');
@@ -13,7 +13,7 @@ if (process.stdout.columns < MIN_WIDTH || process.stdout.rows < MIN_HEIGHT) {
     console.log('║   Please resize your terminal window and restart.    ║');
     console.log('║                                                      ║');
     console.log('╚══════════════════════════════════════════════════════╝');
-    console.log('\x1b[0m'); // Сброс цвета
+    console.log('\x1b[0m');
     process.exit(1);
 }
 

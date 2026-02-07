@@ -28,6 +28,8 @@ export default class Enemy extends Entity {
 
         this.x = x;
         this.y = y;
+
+        this._skipTurn = false;
     }
 
     get isEvil() {
@@ -55,6 +57,22 @@ export default class Enemy extends Entity {
         const dy = hero.y - this.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
+        if (this.type === 'ogre') {
+            if (this._skipTurn) {
+                this._skipTurn = false;
+                return; // Пропускает этот ход
+            }
+            this._skipTurn = true; // Следующий ход пропустит
+        }
+
+        if (this.type === 'ghost') {
+            // 10% шанс телепортироваться в случайную точку комнаты
+            if (Math.random() < 0.1) {
+                this._teleport(level);
+                return;
+            }
+        }
+
         if (distance > this.hostility) return;
 
         const stepX = Math.sign(dx);
@@ -68,23 +86,33 @@ export default class Enemy extends Entity {
         }
 
         let moved = false;
-
         if (Math.abs(dx) >= Math.abs(dy)) {
-            if (stepX !== 0) {
-                moved = this._tryMove(this.x + stepX, this.y, level, hero, onAttack);
-            }
-            if (!moved && stepY !== 0) {
-                moved = this._tryMove(this.x, this.y + stepY, level, hero, onAttack);
-            }
+            if (stepX !== 0) moved = this._tryMove(this.x + stepX, this.y, level, hero, onAttack);
+            if (!moved && stepY !== 0) moved = this._tryMove(this.x, this.y + stepY, level, hero, onAttack);
         } else {
-            if (stepY !== 0) {
-                moved = this._tryMove(this.x, this.y + stepY, level, hero, onAttack);
-            }
-            if (!moved && stepX !== 0) {
-                moved = this._tryMove(this.x + stepX, this.y, level, hero, onAttack);
+            if (stepY !== 0) moved = this._tryMove(this.x, this.y + stepY, level, hero, onAttack);
+            if (!moved && stepX !== 0) moved = this._tryMove(this.x + stepX, this.y, level, hero, onAttack);
+        }
+    }
+
+    _teleport(level) {
+        // Ищем случайную свободную точку
+        for (let i = 0; i < 10; i++) { // 10 попыток
+            const rX = Math.floor(Math.random() * level.width);
+            const rY = Math.floor(Math.random() * level.height);
+            if (level.getTile(rX, rY) === 'floor') {
+                // Проверка на занятость
+                const occupied = level.monsters.some(m => m.x === rX && m.y === rY) ||
+                    (level.startPoint.x === rX && level.startPoint.y === rY); // Не телепортируемся на героя
+                if (!occupied) {
+                    this.x = rX;
+                    this.y = rY;
+                    break;
+                }
             }
         }
     }
+
 
     _tryMove(destX, destY, level, hero, onAttack) {
         if (this.type !== 'ghost') {

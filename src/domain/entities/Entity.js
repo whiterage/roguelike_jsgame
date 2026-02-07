@@ -67,14 +67,20 @@ export default class Entity {
         this._x = x;
         this._y = y;
     }
-    
-    takeDamage(damage) {
-        this._hp -= damage;
-        if (this._hp < 0) this._hp = 0;
+
+    equipWeapon(weapon) {
+        this._weapon = weapon;
     }
 
-    heal(heal) {
-        this._hp += heal;
-        if (this._hp > this._maxHp) this._hp = this._maxHp;
+    get attackDamage() {
+        let damage = this.strength;
+        if (this._weapon) {
+            damage += this._weapon.strength;
+        }
+        return damage;
+    }
+
+    takeDamage(damage) {
+        this._hp -= damage;
     }
 }

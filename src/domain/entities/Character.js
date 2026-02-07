@@ -11,6 +11,7 @@ export default class Character extends Entity {
 
         this._weapon = null;
         this._backpack = [];
+        this.isSleeping = false;
     }
 
     get weapon() {
