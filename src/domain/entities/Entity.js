@@ -83,4 +83,11 @@ export default class Entity {
     takeDamage(damage) {
         this._hp -= damage;
     }
+
+    heal(amount) {
+        this._hp += amount;
+        if (this._hp > this._maxHp) {
+            this._hp = this._maxHp;
+        }
+    }
 }

@@ -13,7 +13,7 @@ export default class MapGenerator {
     generate(difficulty = 1) {
         const level = new Level({width: this.width, height: this.height});
 
-        // создаем комнаты (ниже реализация)
+        // создаем комнаты
         const rooms = this._placeRooms(level);
 
         // коридоры
@@ -22,13 +22,12 @@ export default class MapGenerator {
         // точка старта
         level.startPoint = rooms[0].center;
 
-
         // выход будет центр последней комнаты
         level.stairsDown = rooms[rooms.length - 1].center;
         level.setTile(level.stairsDown.x, level.stairsDown.y, 'stairs');
 
         // враги
-        this._spawnEnemies(level, rooms);
+        this._spawnEnemies(level, rooms, difficulty);
 
         // предметы
         this._spawnItems(level, rooms, difficulty);
@@ -49,7 +48,6 @@ export default class MapGenerator {
                 const cellX = col * cellWidth;
                 const cellY = row * cellHeight;
 
-                // генерация случайных размеров и позиций
                 const roomWidth = 4 + Math.floor(Math.random() * (cellWidth - 6));
                 const roomHeight = 4 + Math.floor(Math.random() * (cellHeight - 6));
                 const roomX = cellX + 2 + Math.floor(Math.random() * (cellWidth - roomWidth - 4));
@@ -94,12 +92,7 @@ export default class MapGenerator {
 
     _createTunnel(level, pointA, pointB) {
         const isHorizontalFirst = Math.random() > 0.5;
-
-        const corridor = new Corridor({
-            startX: pointA.x, startY: pointA.y,
-            endX: pointB.x, endY: pointB.y
-        });
-
+        
         if (isHorizontalFirst) {
             this._drawHorizontalLine(level, pointA.x, pointB.x, pointA.y);
             this._drawVerticalLine(level, pointA.y, pointB.y, pointB.x);
@@ -125,24 +118,38 @@ export default class MapGenerator {
         }
     }
 
-    _spawnEnemies(level, rooms) {
+    _spawnEnemies(level, rooms, difficulty) {
         const types = ['zombie', 'ghost', 'vampire', 'ogre', 'snake'];
 
+        const baseCount = 1 + Math.floor(difficulty / 3);
         for (let i = 1; i < rooms.length; i++) {
             const room = rooms[i];
-            const enemyCount = Math.floor(Math.random() * 3);
 
-            for (let j = 0; j < enemyCount; j++) {
+            const count = baseCount + Math.floor(Math.random() * 2);
+
+            for (let j = 0; j < count; j++) {
                 const randomIndex = Math.floor(Math.random() * types.length);
-
                 const type = types[randomIndex];
 
-                const x = room.x + 1 + Math.floor(Math.random() * (room.width - 2));
-                const y = room.y + 1 + Math.floor(Math.random() * (room.height - 2));
+                let x, y, attempts = 0;
+                let validPosition = false;
 
-                const enemy = new Enemy(type, x, y);
+                while (!validPosition && attempts < 10) {
+                    x = room.x + 1 + Math.floor(Math.random() * (room.width - 2));
+                    y = room.y + 1 + Math.floor(Math.random() * (room.height - 2));
 
-                level.addEnemy(enemy);
+                    const isOccupied = level.monsters.some(m => m.x === x && m.y === y);
+
+                    if (!isOccupied) {
+                        validPosition = true;
+                    }
+                    attempts++;
+                }
+
+                if (validPosition) {
+                    const enemy = new Enemy(type, x, y);
+                    level.addEnemy(enemy);
+                }
             }
         }
     }

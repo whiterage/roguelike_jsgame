@@ -1,6 +1,7 @@
 import MapGenerator from "./domain/logic/MapGenerator.js";
 import Character from "./domain/entities/Character.js";
 import {ITEM_TYPES} from "./domain/entities/Item.js";
+import ScoreService from "./domain/services/ScoreService.js";
 
 export default class Game {
     constructor() {
@@ -8,21 +9,57 @@ export default class Game {
         const height = process.stdout.rows ? process.stdout.rows - 6 : 24;
 
         this.generator = new MapGenerator(width, height);
-        this.levelCounter = 1;
+        this.scoreService = new ScoreService();
 
-        this.hero = new Character({
-            maxHp: 100,
-            strength: 20,
-            agility: 20
-        });
-
-        this._nextLevel();
         this._initGame();
     }
 
+    _initGame() {
+        this.levelCounter = 1;
+        this.score = 0;
+        this.hero = new Character({
+            maxHp: 100,
+            strength: 10,
+            agility: 10
+        });
+
+        this.hero.inventory = [];
+        this.hero.treasures = 0;
+
+        this.log = [];
+        this.logMessage("{yellow-fg}Welcome to the Dark Dungeon! Reach Level 21...{/}");
+
+        this._nextLevel();
+    }
+
     _nextLevel() {
+        if (this.levelCounter > 21) {
+            this._handleWin();
+            return;
+        }
+
         this.level = this.generator.generate(this.levelCounter);
         this.hero.setPosition(this.level.startPoint.x, this.level.startPoint.y);
+        this.logMessage(`{bold}Descended to Level ${this.levelCounter}{/bold}`);
+    }
+
+    _handleWin() {
+        this.logMessage(`{green-bg}{black-fg} VICTORY! You conquered the dungeon! {/}`);
+        this.scoreService.addScore(this.levelCounter, this.score);
+
+        setTimeout(() => {
+            console.clear();
+            console.log("\n🏆 --- HALL OF FAME --- 🏆");
+            const top = this.scoreService.getTopScores();
+            top.forEach((s, i) => console.log(`${i + 1}. Gold: ${s.gold} (Lvl ${s.level}) - ${s.date}`));
+            process.exit(0);
+        }, 2000);
+    }
+
+    _handleDefeat() {
+        this.logMessage(`{red-bg}{white-fg} YOU DIED! Score saved. Press any key to restart. {/}`);
+        this.scoreService.addScore(this.levelCounter, this.score);
+        this.hero.hp = 0;
     }
 
     processInput(key) {
@@ -33,10 +70,16 @@ export default class Game {
 
         if (this.hero.isSleeping) {
             this.hero.isSleeping = false;
-            this.logMessage('{magenta-fg}You are sleeping... Zzz...{/}');
+            this.logMessage('{magenta-fg}You wake up from magical sleep.{/}');
             this._updateEnemies();
             return;
         }
+
+        // ОБНОВЛЕНИЕ БАФФОВ (Эликсиры)
+        const expired = this.hero.updateBuffs();
+        expired.forEach(buff => {
+            this.logMessage(`{cyan-fg}Effect of ${buff.stat} wore off.{/}`);
+        });
 
         const MOVES = {
             w: {x: 0, y: -1},
@@ -84,20 +127,30 @@ export default class Game {
             return;
         }
 
+        if (item.type === ITEM_TYPES.ELIXIR) {
+            this.logMessage(`You drank {magenta-fg}${item.name}{/}.`);
+
+            if (item.agility) {
+                this.hero.applyBuff('agility', item.agility, item.duration);
+                this.logMessage(`{green-fg}Agility +${item.agility} for ${item.duration} turns.{/}`);
+            }
+            if (item.maxHpBonus) {
+                this.hero.applyBuff('maxHp', item.maxHpBonus, item.duration);
+                this.logMessage(`{green-fg}MaxHP +${item.maxHpBonus} for ${item.duration} turns.{/}`);
+            }
+
+            this.hero.inventory.splice(index, 1);
+            return;
+        }
+
         this.logMessage(`You used {cyan-fg}${item.name}{/}.`);
 
         if (item.healthBonus) {
-            this.hero.hp = Math.min(this.hero.hp + item.healthBonus, this.hero.maxHp);
-        }
-        if (item.maxHpBonus) {
-            this.hero.maxHp += item.maxHpBonus;
-            this.hero.hp += item.maxHpBonus;
+            this.hero.heal(item.healthBonus);
         }
         if (item.strength) {
             this.hero.strength += item.strength;
-        }
-        if (item.agility) {
-            this.hero.agility += item.agility;
+            this.logMessage(`{yellow-fg}Strength permanently increased!{/}`);
         }
 
         this.hero.inventory.splice(index, 1);
@@ -146,78 +199,58 @@ export default class Game {
         });
     }
 
-    _initGame() {
-        this.levelCounter = 1;
-        this.score = 0;
-
-        this.hero = new Character({
-            maxHp: 100,
-            strength: 10,
-            agility: 10
-        });
-
-        this.hero.inventory = [];
-        this.hero.treasures = 0;
-
-        this.log = [];
-        this.logMessage("{yellow-fg}Welcome to the Dark Dungeon! Find the exit...{/}");
-
-        this._nextLevel();
-    }
-
-    logMessage(message) {
-        this.log.push(message);
-        if (this.log.length > 10) {
-            this.log.shift();
-        }
-    }
-
     // Боевая система. Формулы в mathAttack.md
     _resolveCombat(attacker, defender) {
         const attName = (attacker === this.hero) ? "You" : attacker.type;
         const defName = (defender === this.hero) ? "you" : defender.type;
         const color = (attacker === this.hero) ? "green-fg" : "red-fg";
 
+        if (defender.type === 'vampire' && !defender.firstHitTaken) {
+            defender.firstHitTaken = true;
+            this.logMessage(`{grey-fg}The Vampire dodged your first attack!{/}`);
+            return;
+        }
+
         const hitChance = attacker.agility / (attacker.agility + defender.agility);
         const roll = Math.random();
 
         if (roll > hitChance) {
             this.logMessage(`{grey-fg}${attName} missed ${defName}.{/}`);
-            return; // промах
+            return;
         }
 
-        let damage = 0;
-        if (attacker === this.hero) {
-            damage = attacker.attackDamage;
-        } else {
-            damage = attacker.strength;
-        }
+        let damage = (attacker === this.hero) ? attacker.attackDamage : attacker.strength;
 
         defender.takeDamage(damage);
 
         this.logMessage(`{${color}}${attName} hit ${defName} for ${damage} dmg.{/}`);
 
-        // логика змеи
         if (attacker !== this.hero) {
-            if (attacker.type === 'snake') {
-                if (Math.random() < 0.2) {
-                    defender.isSleeping = true;
-                    this.logMessage('{magenta-fg}The Snake hypnotized you!{/}');
-                }
+            if (attacker.type === 'snake' && Math.random() < 0.2) {
+                defender.isSleeping = true;
+                this.logMessage('{magenta-fg}The Snake hypnotized you!{/}');
             }
-        }
 
-        // логика вампира
-        if (attacker.type === 'vampire') {
-            const healAmount = Math.ceil(damage * 0.5);
-            attacker.hp += healAmount; // Лечим вампира
-            this.logMessage(`{red-fg}Vampire drains ${healAmount} HP!{/}`);
+            if (attacker.type === 'vampire') {
+                const healAmount = Math.ceil(damage * 0.5);
+                attacker.heal(healAmount);
+
+                const drain = 5;
+                defender.maxHp -= drain;
+                if (defender.hp > defender.maxHp) defender.hp = defender.maxHp;
+
+                this.logMessage(`{red-fg}Vampire drains HP and ${drain} MaxHP!{/}`);
+            }
+
+            if (attacker.type === 'ogre') {
+                attacker.isResting = true;
+                this.logMessage(`{yellow-fg}Ogre is exhausted.{/}`);
+            }
         }
 
         if (defender.hp <= 0) {
             if (defender === this.hero) {
-                this.logMessage(`{red-bg}{white-fg} YOU DIED! Press any key to restart. {/}`);
-                this.hero.hp = 0;
+                this._handleDefeat();
             } else {
                 this._killMonster(defender);
             }
@@ -230,7 +263,6 @@ export default class Game {
         // логика награды
         const reward = Math.floor((monster.maxHp + monster.strength + monster.agility + monster.hostility) / 10);
         this.score += reward;
-
         this.hero.treasures += reward;
 
         this.logMessage(`You killed {red-fg}${monster.type}{/} and got {yellow-fg}${reward} gold{/}.`);
@@ -245,12 +277,21 @@ export default class Game {
             return;
         }
 
-        if (this.hero.inventory.length < 9) {
+        const countOfType = this.hero.inventory.filter(i => i.type === item.type).length;
+
+        if (countOfType < 9) {
             this.hero.inventory.push(item);
             this.level.removeItem(item);
             this.logMessage(`You picked up {cyan-fg}${item.name}{/}.`);
         } else {
-            this.logMessage(`{red-fg}Inventory full! Cannot pick up ${item.name}.{/}`);
+            this.logMessage(`{red-fg}Cannot carry more ${item.type}s!{/}`);
+        }
+    }
+
+    logMessage(message) {
+        this.log.push(message);
+        if (this.log.length > 10) {
+            this.log.shift();
         }
     }
 }
