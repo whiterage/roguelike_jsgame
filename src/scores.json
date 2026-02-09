@@ -1,0 +1,16 @@
+[
+  {
+    "date": "2026-02-09",
+    "level": {
+      "level": 1,
+      "enemiesKilled": 0,
+      "foodEaten": 0,
+      "elixirsDrank": 0,
+      "scrollsRead": 0,
+      "damageDealt": 0,
+      "damageTaken": 108,
+      "stepsTaken": 27,
+      "itemsPicked": 0
+    }
+  }
+]

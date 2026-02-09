@@ -23,11 +23,11 @@ import InputHandler from "./presentation/InputHandler.js";
 
 const game = new Game();
 const renderer = new Renderer();
-const input = new InputHandler(game, renderer);
+const inputHandler = new InputHandler(game, renderer);
 
-renderer.draw(game.level, game.hero, game.levelCounter, game.log);
+renderer.draw(game);
 
 
 renderer.onInput((key) => {
-    input.handleKey(key);
+    inputHandler.handleKey(key);
 });

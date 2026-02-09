@@ -2,14 +2,35 @@ import MapGenerator from "./domain/logic/MapGenerator.js";
 import Character from "./domain/entities/Character.js";
 import {ITEM_TYPES} from "./domain/entities/Item.js";
 import ScoreService from "./domain/services/ScoreService.js";
+import FogOfWar from "./domain/logic/FogOfWar.js";
 
 export default class Game {
     constructor() {
         const width = process.stdout.columns ? process.stdout.columns - 4 : 80;
         const height = process.stdout.rows ? process.stdout.rows - 6 : 24;
 
+        this.width = width;
+        this.height = height;
+
         this.generator = new MapGenerator(width, height);
         this.scoreService = new ScoreService();
+        this.fog = new FogOfWar(width, height);
+
+        this.stats = {
+            gold: 0,
+            level: 1,
+            enemiesKilled: 0,
+            foodEaten: 0,
+            elixirsDrank: 0,
+            scrollsRead: 0,
+            damageDealt: 0,
+            damageTaken: 0,
+            stepsTaken: 0,
+            itemsPicked: 0
+        };
+
+        this.inputMode = 'normal';
+        this.itemSelectionType = null;
 
         this._initGame();
     }
@@ -17,17 +38,13 @@ export default class Game {
     _initGame() {
         this.levelCounter = 1;
         this.score = 0;
-        this.hero = new Character({
-            maxHp: 100,
-            strength: 10,
-            agility: 10
-        });
 
-        this.hero.inventory = [];
-        this.hero.treasures = 0;
+        for (let key in this.stats) this.stats[key] = 0;
+        this.stats.level = 1;
 
+        this.hero = new Character({maxHp: 100, strength: 10, agility: 10});
         this.log = [];
-        this.logMessage("{yellow-fg}Welcome to the Dark Dungeon! Reach Level 21...{/}");
+        this.logMessage("{yellow-fg}Welcome to the Dark Dungeon!{/}");
 
         this._nextLevel();
     }
@@ -38,31 +55,70 @@ export default class Game {
             return;
         }
 
+        this.stats.level = this.levelCounter;
         this.level = this.generator.generate(this.levelCounter);
         this.hero.setPosition(this.level.startPoint.x, this.level.startPoint.y);
+
+        this.fog = new FogOfWar(this.width, this.height);
+        this.fog.update(this.hero, this.level);
+
         this.logMessage(`{bold}Descended to Level ${this.levelCounter}{/bold}`);
     }
 
     _handleWin() {
+        this.stats.gold = this.hero.treasures;
         this.logMessage(`{green-bg}{black-fg} VICTORY! You conquered the dungeon! {/}`);
-        this.scoreService.addScore(this.levelCounter, this.score);
+
+        this.scoreService.addScore(this.stats);
 
         setTimeout(() => {
             console.clear();
             console.log("\n🏆 --- HALL OF FAME --- 🏆");
             const top = this.scoreService.getTopScores();
-            top.forEach((s, i) => console.log(`${i + 1}. Gold: ${s.gold} (Lvl ${s.level}) - ${s.date}`));
+            top.forEach((s, i) => console.log(`${i + 1}. Gold: ${s.gold} | Lvl: ${s.level} | Kills: ${s.enemiesKilled} | Date: ${s.date}`));
             process.exit(0);
         }, 2000);
     }
 
     _handleDefeat() {
+        this.stats.gold = this.hero.treasures;
         this.logMessage(`{red-bg}{white-fg} YOU DIED! Score saved. Press any key to restart. {/}`);
-        this.scoreService.addScore(this.levelCounter, this.score);
+
+        this.scoreService.addScore(this.stats);
         this.hero.hp = 0;
     }
 
     processInput(key) {
+        if (this.inputMode === 'select_item') {
+            const index = parseInt(key) - 1;
+
+            if (!isNaN(index) && index >= -1 && index < 9) {
+                this._useItemByType(this.itemSelectionType, index);
+            } else {
+                this.logMessage("{red-fg}Cancelled.{/}");
+            }
+            this.inputMode = 'normal';
+            this.itemSelectionType = null;
+            return;
+        }
+
+        if (key === 'h') {
+            this._startItemSelection(ITEM_TYPES.WEAPON);
+            return;
+        }
+        if (key === 'j') {
+            this._startItemSelection(ITEM_TYPES.FOOD);
+            return;
+        }
+        if (key === 'k') {
+            this._startItemSelection(ITEM_TYPES.ELIXIR);
+            return;
+        }
+        if (key === 'e') {
+            this._startItemSelection(ITEM_TYPES.SCROLL);
+            return;
+        }
+
         if (this.hero.hp <= 0) {
             this._initGame();
             return;
@@ -70,24 +126,14 @@ export default class Game {
 
         if (this.hero.isSleeping) {
             this.hero.isSleeping = false;
-            this.logMessage('{magenta-fg}You wake up from magical sleep.{/}');
+            this.logMessage('{magenta-fg}You wake up.{/}');
             this._updateEnemies();
             return;
         }
 
-        // ОБНОВЛЕНИЕ БАФФОВ (Эликсиры)
-        const expired = this.hero.updateBuffs();
-        expired.forEach(buff => {
-            this.logMessage(`{cyan-fg}Effect of ${buff.stat} wore off.{/}`);
-        });
+        this.hero.updateBuffs().forEach(b => this.logMessage(`{cyan-fg}${b.stat} ended.{/}`));
 
-        const MOVES = {
-            w: {x: 0, y: -1},
-            s: {x: 0, y: 1},
-            a: {x: -1, y: 0},
-            d: {x: 1, y: 0}
-        };
-
+        const MOVES = {w: {x: 0, y: -1}, s: {x: 0, y: 1}, a: {x: -1, y: 0}, d: {x: 1, y: 0}};
         const move = MOVES[key];
         if (!move) return;
 
@@ -100,14 +146,15 @@ export default class Game {
         if (enemy) {
             this._resolveCombat(this.hero, enemy);
             this._updateEnemies();
+            this.fog.update(this.hero, this.level);
             return;
         }
 
         this.hero.setPosition(newX, newY);
+        this.stats.stepsTaken++;
+
         const item = this.level.items.find(i => i.x === newX && i.y === newY);
-        if (item) {
-            this._handlePickup(item);
-        }
+        if (item) this._handlePickup(item);
 
         if (newX === this.level.stairsDown.x && newY === this.level.stairsDown.y) {
             this.levelCounter++;
@@ -115,7 +162,44 @@ export default class Game {
             return;
         }
 
+        this.fog.update(this.hero, this.level);
         this._updateEnemies();
+    }
+
+    _startItemSelection(type) {
+        const items = this.hero.inventory.filter(i => i.type === type);
+
+        if (items.length === 0) {
+            this.logMessage(`{red-fg}You have no ${type}s.{/}`);
+            return;
+        }
+
+        this.inputMode = 'select_item';
+        this.itemSelectionType = type;
+        this.logMessage(`{bold}Select ${type} (1-${items.length}):{/bold}`);
+    }
+
+    _useItemByType(type, selectionIndex) {
+        const itemsOfType = this.hero.inventory.filter(i => i.type === type);
+
+        if (type === ITEM_TYPES.WEAPON && selectionIndex === -1) {
+            if (this.hero.weapon) {
+                this.logMessage(`You unequipped {white-fg}${this.hero.weapon.name}{/}.`);
+                this.hero.equipWeapon(null);
+            } else {
+                this.logMessage(`You are not holding any weapon.`);
+            }
+            return;
+        }
+
+        const targetItem = itemsOfType[selectionIndex];
+        if (!targetItem) {
+            this.logMessage("{red-fg}Invalid selection.{/}");
+            return;
+        }
+
+        const realIndex = this.hero.inventory.indexOf(targetItem);
+        this.useItem(realIndex);
     }
 
     useItem(index) {
@@ -126,33 +210,25 @@ export default class Game {
             this._equipWeapon(item, index);
             return;
         }
-
         if (item.type === ITEM_TYPES.ELIXIR) {
             this.logMessage(`You drank {magenta-fg}${item.name}{/}.`);
-
-            if (item.agility) {
-                this.hero.applyBuff('agility', item.agility, item.duration);
-                this.logMessage(`{green-fg}Agility +${item.agility} for ${item.duration} turns.{/}`);
-            }
-            if (item.maxHpBonus) {
-                this.hero.applyBuff('maxHp', item.maxHpBonus, item.duration);
-                this.logMessage(`{green-fg}MaxHP +${item.maxHpBonus} for ${item.duration} turns.{/}`);
-            }
-
+            this.stats.elixirsDrank++;
+            if (item.agility) this.hero.applyBuff('agility', item.agility, item.duration);
+            if (item.maxHpBonus) this.hero.applyBuff('maxHp', item.maxHpBonus, item.duration);
+            this.hero.inventory.splice(index, 1);
+            return;
+        }
+        if (item.type === ITEM_TYPES.SCROLL) {
+            this.stats.scrollsRead++;
+            this.hero.strength += item.strength;
+            this.logMessage(`{yellow-fg}Strength permanently increased!{/}`);
             this.hero.inventory.splice(index, 1);
             return;
         }
 
-        this.logMessage(`You used {cyan-fg}${item.name}{/}.`);
-
-        if (item.healthBonus) {
-            this.hero.heal(item.healthBonus);
-        }
-        if (item.strength) {
-            this.hero.strength += item.strength;
-            this.logMessage(`{yellow-fg}Strength permanently increased!{/}`);
-        }
-
+        this.logMessage(`You ate {red-fg}${item.name}{/}.`);
+        this.stats.foodEaten++;
+        this.hero.heal(item.healthBonus);
         this.hero.inventory.splice(index, 1);
     }
 
@@ -199,7 +275,6 @@ export default class Game {
         });
     }
 
-    // Боевая система. Формулы в mathAttack.md
     _resolveCombat(attacker, defender) {
         const attName = (attacker === this.hero) ? "You" : attacker.type;
         const defName = (defender === this.hero) ? "you" : defender.type;
@@ -223,6 +298,9 @@ export default class Game {
 
         defender.takeDamage(damage);
 
+        if (attacker === this.hero) this.stats.damageDealt += damage;
+        if (defender === this.hero) this.stats.damageTaken += damage;
+
         this.logMessage(`{${color}}${attName} hit ${defName} for ${damage} dmg.{/}`);
 
         if (attacker !== this.hero) {
@@ -234,11 +312,9 @@ export default class Game {
             if (attacker.type === 'vampire') {
                 const healAmount = Math.ceil(damage * 0.5);
                 attacker.heal(healAmount);
-
                 const drain = 5;
                 defender.maxHp -= drain;
                 if (defender.hp > defender.maxHp) defender.hp = defender.maxHp;
-
                 this.logMessage(`{red-fg}Vampire drains HP and ${drain} MaxHP!{/}`);
             }
 
@@ -260,10 +336,11 @@ export default class Game {
     _killMonster(monster) {
         this.level.monsters = this.level.monsters.filter(m => m !== monster);
 
-        // логика награды
         const reward = Math.floor((monster.maxHp + monster.strength + monster.agility + monster.hostility) / 10);
         this.score += reward;
         this.hero.treasures += reward;
+
+        this.stats.enemiesKilled++;
 
         this.logMessage(`You killed {red-fg}${monster.type}{/} and got {yellow-fg}${reward} gold{/}.`);
     }
@@ -283,6 +360,7 @@ export default class Game {
             this.hero.inventory.push(item);
             this.level.removeItem(item);
             this.logMessage(`You picked up {cyan-fg}${item.name}{/}.`);
+            this.stats.itemsPicked++;
         } else {
             this.logMessage(`{red-fg}Cannot carry more ${item.type}s!{/}`);
         }

@@ -22,61 +22,36 @@ export default class Renderer {
         });
 
         this.mapBox = blessed.box({
-            top: 2,
+            top: 1,
             left: 'center',
             width: '100%',
-            height: '100%',
+            height: '100%-4',
             tags: true,
-            border: {type: 'line'},
-            style: {border: {fg: '#444444'}}
+            style: {
+                bg: 'black'
+            }
         });
 
         this.logBox = blessed.box({
             bottom: 0,
             left: 'center',
             width: '100%',
-            height: '20%-1',
+            height: 4,
             tags: true,
             border: {type: 'line'},
-            label: ' {bold}Combat Log{/bold} ',
-            scrollable: true,
-            alwaysScroll: true,
-            scrollbar: {
-                ch: ' ',
-                bg: 'green'
-            },
-            mouse: true,
+            label: ' {bold}Log{/bold} ',
             style: {
-                border: {fg: 'green'},
+                border: {fg: '#444444'},
                 fg: 'grey'
             }
         });
 
-        this.alertBox = blessed.box({
-            top: 'center',
-            left: 'center',
-            width: '50%',
-            height: 5,
-            align: 'center',
-            valign: 'middle',
-            hidden: true,
-            tags: true,
-            border: {type: 'line'},
-            style: {
-                fg: 'black',
-                bg: 'magenta',
-                border: {fg: 'cyan'},
-                bold: true
-            }
-        });
-
-        this.inventoryBox = blessed.box({
+        this.modalBox = blessed.box({
             top: 'center',
             left: 'center',
             width: 50,
-            height: 20,
+            height: 14,
             hidden: true,
-            label: ' {bold}Inventory (Press i to close){/bold} ',
             tags: true,
             border: {type: 'line'},
             style: {
@@ -84,146 +59,146 @@ export default class Renderer {
                 bg: 'black',
                 fg: 'white'
             },
-            draggable: true,
             shadow: true
         });
-
 
         this.screen.append(this.statusBox);
         this.screen.append(this.mapBox);
         this.screen.append(this.logBox);
-        this.screen.append(this.inventoryBox);
-        this.screen.append(this.alertBox);
-
-        this.isInventoryOpen = false;
-    }
-
-    showAlert(text, duration = 2000) {
-        this.alertBox.setContent(`{center}${text}{/center}`);
-        this.alertBox.show();
-        this.alertBox.setFront();
-        this.screen.render();
-
-        setTimeout(() => {
-            this.alertBox.hide();
-            this.screen.render();
-        }, duration);
+        this.screen.append(this.modalBox);
     }
 
     onInput(callback) {
         this.screen.on('keypress', (ch, key) => {
-            if (key && key.name) {
-                callback(key.name);
-            } else if (ch) {
-                callback(ch);
-            }
+            if (key && key.name) callback(key.name);
+            else if (ch) callback(ch);
         });
     }
 
-    toggleInventory(hero) {
-        this.isInventoryOpen = !this.isInventoryOpen;
+    draw(game) {
+        const {level, hero, levelCounter, log, fog, inputMode, itemSelectionType} = game;
 
-        if (this.isInventoryOpen) {
-            this.inventoryBox.show();
-            this._renderInventoryContent(hero);
-            this.inventoryBox.setFront();
-        } else {
-            this.inventoryBox.hide();
-        }
-        this.screen.render();
-        return this.isInventoryOpen;
-    }
-
-    _renderInventoryContent(hero) {
-        if (hero.inventory.length === 0) {
-            this.inventoryBox.setContent('\n  {red-fg}Your backpack is empty.{/red-fg}');
-            return;
-        }
-
-        let content = '\n';
-        hero.inventory.forEach((item, index) => {
-            content += `  ${index + 1}. {${item.color}-fg}${item.symbol}{/} ${item.name}`;
-
-            if (item.strength) content += ` {grey-fg}(Str +${item.strength}){/}`;
-            if (item.agility) content += ` {grey-fg}(Agi +${item.agility}){/}`;
-            if (item.healthBonus) content += ` {grey-fg}(HP +${item.healthBonus}){/}`;
-
-            content += '\n';
-        });
-
-        content += '\n  {grey-fg}Press numbers (1-9) to use items.{/}';
-        this.inventoryBox.setContent(content);
-    }
-
-    draw(level, hero, levelCounter, gameLog) {
-        if (this.isInventoryOpen) return;
-
-        let weaponStr = 'None';
-        if (hero.weapon) {
-            weaponStr = `${hero.weapon.name} (+${hero.weapon.strength})`;
-        }
-
-        const damage = hero.attackDamage || hero.strength;
-
-        const statusUI = ` {bold}Lvl:{/bold} ${levelCounter} | {bold}HP:{/bold} {red-fg}${hero.hp}/${hero.maxHp}{/} | {bold}Str:{/bold} ${hero.strength} | {bold}Agi:{/bold} ${hero.agility} | {bold}Wpn:{/bold} {cyan-fg}${weaponStr}{/} | {bold}Gold:{/bold} {yellow-fg}${hero.treasures || 0}{/}`;
+        const wpn = hero.weapon ? hero.weapon.name : 'Fists';
+        const dmg = hero.attackDamage;
+        const statusUI = ` Lvl: ${levelCounter} | HP: ${hero.hp}/${hero.maxHp} | Dmg: ${dmg} | Gold: ${game.stats.gold || hero.treasures} | {bold}[H]Wpn [J]Food [K]Pot [E]Scroll{/}`;
         this.statusBox.setContent(statusUI);
 
-        const logContent = (gameLog || []).join('\n');
-        this.logBox.setContent(logContent);
-        this.logBox.setScrollPerc(100);
+        this.logBox.setContent(log.slice(-3).join('\n'));
 
         let content = '';
-
-        this.mapBox.width = level.width + 2;
-        this.mapBox.height = level.height + 2;
 
         for (let y = 0; y < level.height; y++) {
             for (let x = 0; x < level.width; x++) {
 
-                // игрок
+                const isVisible = fog.visible[y][x];
+                const isExplored = fog.explored[y][x];
+
+                if (!isExplored) {
+                    content += ' ';
+                    continue;
+                }
+
+                const colorTag = isVisible ? '' : '{#444444-fg}';
+                const closeTag = isVisible ? '' : '{/}';
+
                 if (x === hero.x && y === hero.y) {
-                    content += '{cyan-fg}{bold}⚡{/bold}{/cyan-fg}';
+                    content += '{magenta-fg}Ω{/magenta-fg}';
                     continue;
                 }
 
-                // враги
                 const monster = level.monsters.find(m => m.x === x && m.y === y);
-                if (monster) {
-                    content += `{${monster.color}-fg}${monster.symbol}{/${monster.color}-fg}`;
+                if (monster && isVisible) {
+                    if (monster.type === 'ghost' && !monster.isVisible) {
+                        content += '{blue-fg}·{/blue-fg}';
+                    } else {
+                        content += `{${monster.color}-fg}${monster.symbol}{/${monster.color}-fg}`;
+                    }
                     continue;
                 }
 
-                // предметы
-                const item = level.items && level.items.find(i => i.x === x && i.y === y);
-                if (item) {
+                const item = level.items.find(i => i.x === x && i.y === y);
+                if (item && isVisible) {
                     content += `{${item.color}-fg}${item.symbol}{/${item.color}-fg}`;
                     continue;
                 }
 
-                // выход
-                if (x === level.stairsDown.x && y === level.stairsDown.y) {
-                    content += '{magenta-fg}◎{/magenta-fg}';
-                    continue;
-                }
-
-                // карта
                 const tile = level.getTile(x, y);
+
                 if (tile === 'wall') {
-                    content += ' ';
+                    const symbol = this._getWallSymbol(level, x, y);
+                    content += `${colorTag}${symbol}${closeTag}`;
                 } else if (tile === 'floor') {
-                    content += '{blue-fg}·{/blue-fg}';
+                    content += isVisible ? '{blue-fg}·{/blue-fg}' : `${colorTag}·${closeTag}`;
+                } else if (tile === 'stairs') {
+                    content += isVisible ? '{magenta-fg}≡{/magenta-fg}' : `${colorTag}≡${closeTag}`;
                 } else {
                     content += ' ';
                 }
-
             }
             content += '\n';
         }
         this.mapBox.setContent(content);
+
+        if (inputMode === 'select_item') {
+            this.modalBox.show();
+            this._renderModal(hero, itemSelectionType);
+            this.modalBox.setFront();
+        } else {
+            this.modalBox.hide();
+        }
+
         this.screen.render();
     }
 
-    setTitle(text) {
-        this.screen.title = text;
+    _renderModal(hero, type) {
+        const items = hero.inventory.filter(i => i.type === type);
+        let content = `{center}{bold}Select ${type.toUpperCase()}{/bold}{/center}\n\n`;
+
+        items.forEach((item, idx) => {
+            content += ` ${idx + 1}. ${item.name}`;
+
+            if (item.healthBonus) content += ` {green-fg}(+${item.healthBonus} HP){/}`;
+            if (item.strength) content += ` {yellow-fg}(+${item.strength} Str){/}`;
+            if (item.value && type === 'weapon') content += ` {red-fg}(+${item.value} Dmg){/}`;
+            if (item.duration) content += ` {cyan-fg}(${item.duration} turns){/}`;
+
+            content += '\n';
+        });
+
+        if (type === 'weapon') {
+            content += `\n 0. Unequip Weapon`;
+        } else {
+            content += `\n 0. Cancel`;
+        }
+
+        this.modalBox.setContent(content);
+    }
+
+    _getWallSymbol(level, x, y) {
+        const isWall = (tx, ty) => {
+            if (tx < 0 || ty < 0 || tx >= level.width || ty >= level.height) return false;
+            return level.getTile(tx, ty) === 'wall';
+        };
+
+        const n = isWall(x, y - 1);
+        const s = isWall(x, y + 1);
+        const w = isWall(x - 1, y);
+        const e = isWall(x + 1, y);
+
+        if (n && s && e && w) return '╬';
+        if (n && s && e) return '╠';
+        if (n && s && w) return '╣';
+        if (n && e && w) return '╩';
+        if (s && e && w) return '╦';
+
+        if (s && e) return '╔';
+        if (s && w) return '╗';
+        if (n && e) return '╚';
+        if (n && w) return '╝';
+
+        if (n || s) return '║';
+        if (e || w) return '═';
+
+        return '#';
     }
 }

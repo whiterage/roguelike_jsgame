@@ -11,28 +11,31 @@ export default class MapGenerator {
     }
 
     generate(difficulty = 1) {
-        const level = new Level({width: this.width, height: this.height});
+        const MAX_ATTEMPTS = 100;
+        let attempts = 0;
 
-        // создаем комнаты
-        const rooms = this._placeRooms(level);
+        while (attempts < MAX_ATTEMPTS) {
+            attempts++;
 
-        // коридоры
-        this._connectRooms(level, rooms);
+            const level = new Level({width: this.width, height: this.height});
 
-        // точка старта
-        level.startPoint = rooms[0].center;
+            const rooms = this._placeRooms(level);
 
-        // выход будет центр последней комнаты
-        level.stairsDown = rooms[rooms.length - 1].center;
-        level.setTile(level.stairsDown.x, level.stairsDown.y, 'stairs');
+            this._connectRooms(level, rooms);
 
-        // враги
-        this._spawnEnemies(level, rooms, difficulty);
+            level.startPoint = rooms[0].center;
+            level.stairsDown = rooms[rooms.length - 1].center;
+            level.setTile(level.stairsDown.x, level.stairsDown.y, 'stairs');
 
-        // предметы
-        this._spawnItems(level, rooms, difficulty);
+            if (this._isMapConnected(level, rooms)) {
+                this._spawnEnemies(level, rooms, difficulty);
+                this._spawnItems(level, rooms, difficulty);
 
-        return level;
+                return level;
+            }
+
+        }
+        throw new Error("Critical Error: Failed to generate a valid map after 100 attempts.");
     }
 
     _placeRooms(level) {
@@ -61,6 +64,52 @@ export default class MapGenerator {
             }
         }
         return generatedRooms;
+    }
+
+    _isMapConnected(level, rooms) {
+        if (rooms.length === 0) return false;
+
+        const startX = rooms[0].center.x;
+        const startY = rooms[0].center.y;
+
+        const visited = new Set();
+        const queue = [{x: startX, y: startY}];
+        visited.add(`${startX},${startY}`);
+
+        let visitedTilesCount = 0;
+
+        while (queue.length > 0) {
+            const current = queue.shift();
+            visitedTilesCount++;
+
+            const neighbors = [
+                {x: current.x + 1, y: current.y},
+                {x: current.x - 1, y: current.y},
+                {x: current.x, y: current.y + 1},
+                {x: current.x, y: current.y - 1}
+            ];
+
+            for (const n of neighbors) {
+                if (n.x >= 0 && n.x < level.width && n.y >= 0 && n.y < level.height) {
+                    const tile = level.getTile(n.x, n.y);
+                    const key = `${n.x},${n.y}`;
+
+                    if ((tile === 'floor' || tile === 'stairs') && !visited.has(key)) {
+                        visited.add(key);
+                        queue.push(n);
+                    }
+                }
+            }
+        }
+
+        for (const room of rooms) {
+            const key = `${room.center.x},${room.center.y}`;
+            if (!visited.has(key)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     _carveRoom(level, room) {
@@ -92,7 +141,7 @@ export default class MapGenerator {
 
     _createTunnel(level, pointA, pointB) {
         const isHorizontalFirst = Math.random() > 0.5;
-        
+
         if (isHorizontalFirst) {
             this._drawHorizontalLine(level, pointA.x, pointB.x, pointA.y);
             this._drawVerticalLine(level, pointA.y, pointB.y, pointB.x);
