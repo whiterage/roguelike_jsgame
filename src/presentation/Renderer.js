@@ -7,8 +7,6 @@ export default class Renderer {
             title: 'Rogue JS'
         });
 
-        this.screen.key(['escape', 'q', 'C-c'], () => process.exit(0));
-
         this.statusBox = blessed.box({
             top: 0,
             left: 'center',
@@ -69,9 +67,20 @@ export default class Renderer {
     }
 
     onInput(callback) {
+        let lastKey = null;
+        let lastTime = 0;
+        const DEBOUNCE_MS = 80;
+
         this.screen.on('keypress', (ch, key) => {
-            if (key && key.name) callback(key.name);
-            else if (ch) callback(ch);
+            const k = (key && key.name) ? key.name : ch;
+            if (!k) return;
+
+            const now = Date.now();
+            if (k === lastKey && now - lastTime < DEBOUNCE_MS) return;
+            lastKey = k;
+            lastTime = now;
+
+            callback(k);
         });
     }
 
@@ -80,7 +89,10 @@ export default class Renderer {
 
         const wpn = hero.weapon ? hero.weapon.name : 'Fists';
         const dmg = hero.attackDamage;
-        const statusUI = ` Lvl: ${levelCounter} | HP: ${hero.hp}/${hero.maxHp} | Dmg: ${dmg} | Gold: ${game.stats.gold || hero.treasures} | {bold}[H]Wpn [J]Food [K]Pot [E]Scroll{/}`;
+        const keysStr = hero.keyring && Object.keys(hero.keyring).length
+            ? ` | Keys: ${Object.keys(hero.keyring).map(c => c.charAt(0).toUpperCase()).join(' ')}`
+            : '';
+        const statusUI = ` Lvl: ${levelCounter} | HP: ${hero.hp}/${hero.maxHp} | Dmg: ${dmg} | Gold: ${hero.treasures}${keysStr} | {bold}[H]Wpn [J]Food [K]Pot [E]Scroll{/}`;
         this.statusBox.setContent(statusUI);
 
         this.logBox.setContent(log.slice(-3).join('\n'));
@@ -119,6 +131,17 @@ export default class Renderer {
                 const item = level.items.find(i => i.x === x && i.y === y);
                 if (item && isVisible) {
                     content += `{${item.color}-fg}${item.symbol}{/${item.color}-fg}`;
+                    continue;
+                }
+
+                const door = level.getDoorAt && level.getDoorAt(x, y);
+                if (door && isVisible) {
+                    const doorSymbol = '⌂';
+                    content += `${colorTag}{${door.color}-fg}${doorSymbol}{/}${closeTag}`;
+                    continue;
+                }
+                if (door && !isVisible) {
+                    content += `${colorTag}#${closeTag}`;
                     continue;
                 }
 

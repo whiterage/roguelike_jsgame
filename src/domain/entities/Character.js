@@ -11,9 +11,27 @@ export default class Character extends Entity {
 
         this._weapon = null;
         this._inventory = [];
+        this._keyring = {}; // { red: true, blue: true } — ключи в стиле DOOM
 
         this._buffs = [];
         this.isSleeping = false;
+    }
+
+    get keyring() {
+        return this._keyring;
+    }
+
+    set keyring(value) {
+        this._keyring = value || {};
+    }
+
+    hasKey(color) {
+        if (!this._keyring || typeof this._keyring !== 'object') return false;
+        return !!this._keyring[color];
+    }
+
+    addKey(color) {
+        this._keyring[color] = true;
     }
 
     get weapon() {

@@ -1,3 +1,6 @@
+/** Цвета дверей в стиле DOOM */
+export const DOOR_COLORS = ['red', 'blue', 'yellow'];
+
 export default class Level {
     constructor({
                     width,
@@ -5,25 +8,36 @@ export default class Level {
                     rooms = [],
                     monsters = [],
                     items = [],
+                    doors = [],
                     startPoint = {x: 0, y: 0},
                     stairsDown = null,
+                    tiles = null,
                 }) {
         this._width = width;
         this._height = height;
         this._rooms = rooms;
         this._monsters = monsters;
         this._items = items;
+        this._doors = doors;
         this._startPoint = startPoint;
         this._stairsDown = stairsDown;
 
-        this._tiles = [];
-        for (let y = 0; y < this._height; y++) {
-            const row = [];
-            for (let x = 0; x < this._width; x++) {
-                row.push('wall');
+        if (tiles && tiles.length === height && tiles[0].length === width) {
+            this._tiles = tiles.map(row => [...row]);
+        } else {
+            this._tiles = [];
+            for (let y = 0; y < this._height; y++) {
+                const row = [];
+                for (let x = 0; x < this._width; x++) {
+                    row.push('wall');
+                }
+                this._tiles.push(row);
             }
-            this._tiles.push(row);
         }
+    }
+
+    get tiles() {
+        return this._tiles;
     }
 
     get monsters() {
@@ -52,6 +66,18 @@ export default class Level {
 
     removeItem(item) {
         this._items = this._items.filter(i => i !== item);
+    }
+
+    get doors() {
+        return this._doors;
+    }
+
+    set doors(value) {
+        this._doors = value;
+    }
+
+    getDoorAt(x, y) {
+        return this._doors.find(d => d.x === x && d.y === y) || null;
     }
 
     get rooms() {

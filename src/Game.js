@@ -3,11 +3,22 @@ import Character from "./domain/entities/Character.js";
 import {ITEM_TYPES} from "./domain/entities/Item.js";
 import ScoreService from "./domain/services/ScoreService.js";
 import FogOfWar from "./domain/logic/FogOfWar.js";
+import {
+    TERMINAL_PADDING_X,
+    TERMINAL_PADDING_Y,
+    DEFAULT_WIDTH,
+    DEFAULT_HEIGHT,
+    MAX_ITEMS_PER_TYPE,
+    MAX_LEVELS,
+} from "./config.js";
+import SaveService from "./domain/services/SaveService.js";
+import Level from "./domain/entities/Level.js";
+import Enemy from "./domain/entities/Enemy.js";
 
 export default class Game {
     constructor() {
-        const width = process.stdout.columns ? process.stdout.columns - 4 : 80;
-        const height = process.stdout.rows ? process.stdout.rows - 6 : 24;
+        const width = process.stdout.columns ? process.stdout.columns - TERMINAL_PADDING_X : DEFAULT_WIDTH;
+        const height = process.stdout.rows ? process.stdout.rows - TERMINAL_PADDING_Y : DEFAULT_HEIGHT;
 
         this.width = width;
         this.height = height;
@@ -35,6 +46,75 @@ export default class Game {
         this._initGame();
     }
 
+    saveGameState() {
+        const state = {
+            levelCounter: this.levelCounter,
+            score: this.score,
+            stats: this.stats,
+            log: this.log,
+            hero: this.hero,
+            level: {
+                width: this.level.width,
+                height: this.level.height,
+                startPoint: this.level.startPoint,
+                stairsDown: this.level.stairsDown,
+                rooms: this.level.rooms,
+                tiles: this.level.tiles,
+                doors: this.level.doors,
+                monsters: this.level.monsters,
+                items: this.level.items
+            },
+            fog: {
+                visible: this.fog.visible,
+                explored: this.fog.explored
+            }
+        };
+        SaveService.save(state);
+    }
+
+    loadGameState(data) {
+        this.levelCounter = data.levelCounter;
+        this.score = data.score;
+        this.stats = data.stats;
+        this.log = data.log;
+
+        Object.assign(this.hero, data.hero);
+        if (!this.hero._keyring || typeof this.hero._keyring !== 'object') {
+            this.hero._keyring = {};
+        }
+
+        this.level = new Level({
+            width: data.level.width,
+            height: data.level.height,
+            rooms: data.level.rooms || [],
+            monsters: [],
+            items: data.level.items || [],
+            doors: data.level.doors || [],
+            startPoint: data.level.startPoint || { x: 0, y: 0 },
+            stairsDown: data.level.stairsDown,
+            tiles: data.level.tiles || null
+        });
+
+        this.level.monsters = (data.level.monsters || []).map(mData => {
+            const m = new Enemy(mData.type, mData.x, mData.y);
+            Object.assign(m, mData);
+            return m;
+        });
+
+        this.fog = new FogOfWar(this.width, this.height);
+        this.fog.visible = data.fog.visible;
+        this.fog.explored = data.fog.explored;
+
+        this.logMessage("{green-fg}Game loaded successfully!{/}");
+    }
+
+    quitAndSave() {
+        this.saveGameState();
+        console.clear();
+        console.log("💾 Game saved. See you next time!");
+        process.exit(0);
+    }
+
     _initGame() {
         this.levelCounter = 1;
         this.score = 0;
@@ -50,7 +130,7 @@ export default class Game {
     }
 
     _nextLevel() {
-        if (this.levelCounter > 21) {
+        if (this.levelCounter > MAX_LEVELS) {
             this._handleWin();
             return;
         }
@@ -63,6 +143,7 @@ export default class Game {
         this.fog.update(this.hero, this.level);
 
         this.logMessage(`{bold}Descended to Level ${this.levelCounter}{/bold}`);
+        this.saveGameState();
     }
 
     _handleWin() {
@@ -78,6 +159,7 @@ export default class Game {
             top.forEach((s, i) => console.log(`${i + 1}. Gold: ${s.gold} | Lvl: ${s.level} | Kills: ${s.enemiesKilled} | Date: ${s.date}`));
             process.exit(0);
         }, 2000);
+        SaveService.clearSave();
     }
 
     _handleDefeat() {
@@ -86,13 +168,14 @@ export default class Game {
 
         this.scoreService.addScore(this.stats);
         this.hero.hp = 0;
+        SaveService.clearSave();
     }
 
     processInput(key) {
         if (this.inputMode === 'select_item') {
             const index = parseInt(key) - 1;
 
-            if (!isNaN(index) && index >= -1 && index < 9) {
+            if (!isNaN(index) && index >= -1 && index < MAX_ITEMS_PER_TYPE) {
                 this._useItemByType(this.itemSelectionType, index);
             } else {
                 this.logMessage("{red-fg}Cancelled.{/}");
@@ -142,6 +225,15 @@ export default class Game {
 
         if (this.level.getTile(newX, newY) === 'wall') return;
 
+        const door = this.level.getDoorAt(newX, newY);
+        if (door) {
+            if (!this.hero.hasKey(door.color)) {
+                const colorName = door.color.charAt(0).toUpperCase() + door.color.slice(1);
+                this.logMessage(`{yellow-fg}The ${colorName} door is locked. You need the ${colorName} Key!{/}`);
+                return;
+            }
+        }
+
         const enemy = this.level.monsters.find(m => m.x === newX && m.y === newY);
         if (enemy) {
             this._resolveCombat(this.hero, enemy);
@@ -152,6 +244,11 @@ export default class Game {
 
         this.hero.setPosition(newX, newY);
         this.stats.stepsTaken++;
+
+        if (door) {
+            const colorName = door.color.charAt(0).toUpperCase() + door.color.slice(1);
+            this.logMessage(`{green-fg}You unlock the ${colorName} door with the key.{/}`);
+        }
 
         const item = this.level.items.find(i => i.x === newX && i.y === newY);
         if (item) this._handlePickup(item);
@@ -176,7 +273,7 @@ export default class Game {
 
         this.inputMode = 'select_item';
         this.itemSelectionType = type;
-        this.logMessage(`{bold}Select ${type} (1-${items.length}):{/bold}`);
+        this.logMessage(`{bold}Select ${type} (1-${items.length}, 0 cancel):{/bold}`);
     }
 
     _useItemByType(type, selectionIndex) {
@@ -220,6 +317,7 @@ export default class Game {
         }
         if (item.type === ITEM_TYPES.SCROLL) {
             this.stats.scrollsRead++;
+            const bonus = item.strength || item.value || item.bonus || 2;
             this.hero.strength += item.strength;
             this.logMessage(`{yellow-fg}Strength permanently increased!{/}`);
             this.hero.inventory.splice(index, 1);
@@ -228,6 +326,7 @@ export default class Game {
 
         this.logMessage(`You ate {red-fg}${item.name}{/}.`);
         this.stats.foodEaten++;
+        const heal = item.healthBonus || item.value || 25;
         this.hero.heal(item.healthBonus);
         this.hero.inventory.splice(index, 1);
     }
@@ -346,17 +445,26 @@ export default class Game {
     }
 
     _handlePickup(item) {
-        if (item.type === ITEM_TYPES.TREASURE) {
-            this.hero.treasures += item.price;
-            this.score += item.price;
+        if (item.type === ITEM_TYPES.KEY) {
+            this.hero.addKey(item.keyColor);
             this.level.removeItem(item);
-            this.logMessage(`You picked up {yellow-fg}${item.price} gold{/}.`);
+            const colorName = item.keyColor.charAt(0).toUpperCase() + item.keyColor.slice(1);
+            this.logMessage(`You picked up the {bold}${colorName} Key{/bold}!`);
+            return;
+        }
+
+        if (item.type === ITEM_TYPES.TREASURE) {
+            const amount = item.price ?? item.value ?? 15;
+            this.hero.treasures += amount;
+            this.score += amount;
+            this.level.removeItem(item);
+            this.logMessage(`You picked up {yellow-fg}${amount} gold{/}.`);
             return;
         }
 
         const countOfType = this.hero.inventory.filter(i => i.type === item.type).length;
 
-        if (countOfType < 9) {
+        if (countOfType < MAX_ITEMS_PER_TYPE) {
             this.hero.inventory.push(item);
             this.level.removeItem(item);
             this.logMessage(`You picked up {cyan-fg}${item.name}{/}.`);

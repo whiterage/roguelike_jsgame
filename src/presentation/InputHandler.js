@@ -5,8 +5,12 @@ export default class InputHandler {
     }
 
     handleKey(key) {
-        this.game.processInput(key);
+        if (['escape', 'q', 'C-c'].includes(key)) {
+            this.game.quitAndSave();
+            return;
+        }
 
+        this.game.processInput(key);
         this.renderer.draw(this.game);
     }
 }

@@ -5,7 +5,8 @@ export const ITEM_TYPES = {
     FOOD: 'food',
     WEAPON: 'weapon',
     SCROLL: 'scroll',
-    ELIXIR: 'elixir'
+    ELIXIR: 'elixir',
+    KEY: 'key'
 };
 
 const ITEMS_DB = [
@@ -33,8 +34,10 @@ export default class Item {
         this._agility = 0;
         this._strength = 0;
         this._price = 0;
+        this._keyColor = null;
 
-        this._assignStats(template.value);
+        if (template.keyColor) this._keyColor = template.keyColor;
+        if (this._type !== ITEM_TYPES.KEY) this._assignStats(template.value);
     }
 
     _assignStats(value) {
@@ -111,6 +114,10 @@ export default class Item {
 
     get price() {
         return this._price;
+    }
+
+    get keyColor() {
+        return this._keyColor;
     }
 
     static getRandomTemplate() {
